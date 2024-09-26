@@ -2,6 +2,8 @@ package cnab
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -38,9 +40,34 @@ type CNABSpec struct {
 	Fields []FieldSpec `json:"fields"`
 }
 
-// LoadSpec loads the CNAB specification from the provided reader.
+// LoadSpec loads the CNAB specification from a JSON reader.
 func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
-	return nil // Implement this
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	decoder := json.NewDecoder(specReader)
+	if err := decoder.Decode(&p.spec); err != nil {
+		return fmt.Errorf("failed to decode spec JSON: %w", err)
+	}
+
+	// Precompute field positions and validate fields
+	for i := range p.spec.Fields {
+		field := &p.spec.Fields[i]
+		field.End = field.Start + field.Length - 1
+
+		if field.Start <= 0 || field.Length <= 0 {
+			return fmt.Errorf("invalid field specification for %s: start and length must be positive", field.Name)
+		}
+		if field.Type == "" {
+			return fmt.Errorf("field %s has no type specified", field.Name)
+		}
+	}
+
+	p.fieldCount = len(p.spec.Fields)
+	return nil
 }
 
 // ParseRecord parses the provided record according to the loaded CNAB specification.
