@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -101,9 +103,61 @@ func (p *processor) ParseRecord(ctx context.Context, record []byte) (map[string]
 	return result, nil
 }
 
-// PackRecord packs the provided data according to the loaded CNAB specification.
+var recordPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 1024) // Adjust capacity as needed
+	},
+}
+
+// PackRecord packs data into a CNAB record.
 func (p *processor) PackRecord(ctx context.Context, data map[string]interface{}) ([]byte, error) {
-	return nil, nil // Implement this
+	// Calculate total length
+	totalLength := 0
+	for _, field := range p.spec.Fields {
+		totalLength += field.Length
+	}
+
+	// Get buffer from pool
+	buf := recordPool.Get().([]byte)
+	defer func() {
+		buf = buf[:0]
+		//lint:ignore SA6002 recordPool.Put is safe to call with buf. Only header is copied, slice store reference to data
+		recordPool.Put(buf)
+	}()
+
+	if cap(buf) < totalLength {
+		buf = make([]byte, totalLength)
+	} else {
+		buf = buf[:totalLength]
+	}
+
+	for _, field := range p.spec.Fields {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		value, exists := data[field.Name]
+		if !exists {
+			return nil, fmt.Errorf("missing data for field %s", field.Name)
+		}
+
+		strValue, err := p.formatFieldValue(field, value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to format field %s: %w", field.Name, err)
+		}
+
+		if len(strValue) > field.Length {
+			return nil, fmt.Errorf("formatted value for field %s exceeds specified length", field.Name)
+		}
+
+		// Fill with spaces if necessary
+		paddedValue := strValue + strings.Repeat(" ", field.Length-len(strValue))
+		copy(buf[field.Start-1:field.End], paddedValue)
+	}
+
+	return buf, nil
 }
 
 // Helper Methods
@@ -127,6 +181,38 @@ func (p *processor) parseFieldValue(field FieldSpec, rawValue []byte) (interface
 		return string(trimmedValue), nil
 	default:
 		return nil, fmt.Errorf("unsupported field type: %s", field.Type)
+	}
+}
+
+func (p *processor) formatFieldValue(field FieldSpec, value interface{}) (string, error) {
+	switch field.Type {
+	case "int":
+		intValue, err := toInt(value)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%0*d", field.Length, intValue), nil
+	case "float":
+		floatValue, err := toFloat(value)
+		if err != nil {
+			return "", err
+		}
+		scaledValue := int64(floatValue * pow10(field.Decimal))
+		return fmt.Sprintf("%0*d", field.Length, scaledValue), nil
+	case "date":
+		dateValue, ok := value.(time.Time)
+		if !ok {
+			return "", fmt.Errorf("value for field %s is not time.Time", field.Name)
+		}
+		return formatDate(dateValue, field.Format), nil
+	case "string":
+		strValue, ok := value.(string)
+		if !ok {
+			return "", fmt.Errorf("value for field %s is not string", field.Name)
+		}
+		return strValue, nil
+	default:
+		return "", fmt.Errorf("unsupported field type: %s", field.Type)
 	}
 }
 
@@ -177,4 +263,41 @@ func convertDateFormat(format string) string {
 		format = strings.ReplaceAll(format, old, new)
 	}
 	return format
+}
+
+func formatDate(value time.Time, format string) string {
+	goFormat := convertDateFormat(format)
+	return value.Format(goFormat)
+}
+
+func toInt(value interface{}) (int, error) {
+	switch v := value.(type) {
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	case float64:
+		return int(v), nil
+	case string:
+		return strconv.Atoi(v)
+	default:
+		return 0, fmt.Errorf("cannot convert %T to int", value)
+	}
+}
+
+func toFloat(value interface{}) (float64, error) {
+	switch v := value.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case string:
+		return strconv.ParseFloat(v, 64)
+	default:
+		return 0, fmt.Errorf("cannot convert %T to float64", value)
+	}
 }
