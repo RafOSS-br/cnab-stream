@@ -130,7 +130,7 @@ func (p *processor) ParseRecord(ctx context.Context, record []byte) (map[string]
 	for _, field := range p.spec.Fields {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, ourErrors.CNAB_ErrCancelledContext.Creator(ctx.Err())
 		default:
 		}
 		if err := p.parseRecord(record, field, result); err != nil {
