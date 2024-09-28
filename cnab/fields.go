@@ -15,11 +15,13 @@ import (
 
 // Integer Field Handlers
 
+// validateIntField validates an integer field.
 func validateIntField(field FieldSpec) error {
 	// No specific validation needed for integer fields
 	return nil
 }
 
+// parseIntField parses an integer field.
 func parseIntField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
@@ -28,6 +30,7 @@ func parseIntField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	return atoiUnsafe(trimmedValue)
 }
 
+// formatIntField formats an integer field.
 func formatIntField(field FieldSpec, value interface{}) (string, error) {
 	intValue, err := toInt(value)
 	if err != nil {
@@ -44,6 +47,7 @@ var (
 	IsErrInvalidDecimalValue = iError.MatchError(ErrInvalidDecimalValue)
 )
 
+// validateFloatField validates a float field.
 func validateFloatField(field FieldSpec) error {
 	if field.Decimal < 0 {
 		return ourErrors.CNAB_ErrInvalidDecimalValue.Creator(fieldToError("Name", field.Name))
@@ -51,6 +55,7 @@ func validateFloatField(field FieldSpec) error {
 	return nil
 }
 
+// parseFloatField parses a float field.
 func parseFloatField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
@@ -59,6 +64,7 @@ func parseFloatField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	return parseFloatBytes(trimmedValue, field.Decimal)
 }
 
+// formatFloatField formats a float field.
 func formatFloatField(field FieldSpec, value interface{}) (string, error) {
 	floatValue, err := toFloat(value)
 	if err != nil {
@@ -70,6 +76,7 @@ func formatFloatField(field FieldSpec, value interface{}) (string, error) {
 
 // Date Field Handlers
 
+// validateDateField validates a date field.
 func validateDateField(field FieldSpec) error {
 	if field.Format == "" {
 		return ourErrors.CNAB_ErrMissingDateFormat.Creator(fieldToError("Name", field.Name))
@@ -77,6 +84,7 @@ func validateDateField(field FieldSpec) error {
 	return nil
 }
 
+// parseDateField parses a date field.
 func parseDateField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
@@ -88,6 +96,7 @@ func parseDateField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	return parseDateBytes(trimmedValue, field.Format)
 }
 
+// formatDateField formats a date field.
 func formatDateField(field FieldSpec, value interface{}) (string, error) {
 	dateValue, ok := value.(time.Time)
 	if !ok {
@@ -98,15 +107,18 @@ func formatDateField(field FieldSpec, value interface{}) (string, error) {
 
 // String Field Handlers
 
+// validateStringField validates a string field.
 func validateStringField(field FieldSpec) error {
 	// No specific validation needed for string fields
 	return nil
 }
 
+// parseStringField parses a string field.
 func parseStringField(field FieldSpec, rawValue []byte) (interface{}, error) {
 	return string(bytes.TrimSpace(rawValue)), nil
 }
 
+// formatStringField formats a string field.
 func formatStringField(field FieldSpec, value interface{}) (string, error) {
 	strValue, ok := value.(string)
 	if !ok {
@@ -119,6 +131,7 @@ func formatStringField(field FieldSpec, value interface{}) (string, error) {
 
 var ErrInvalidIntegerInput = errors.New("invalid integer input")
 
+// atoiUnsafe is a faster version of strconv.Atoi that does not check for errors.
 func atoiUnsafe(b []byte) (int, error) {
 	n := 0
 	for _, c := range b {
@@ -130,6 +143,7 @@ func atoiUnsafe(b []byte) (int, error) {
 	return n, nil
 }
 
+// parseFloatBytes parses a float from a byte slice.
 func parseFloatBytes(b []byte, decimal int) (float64, error) {
 	intValue, err := atoiUnsafe(b)
 	if err != nil {
@@ -140,6 +154,7 @@ func parseFloatBytes(b []byte, decimal int) (float64, error) {
 
 var ErrInvalidDateLength = errors.New("invalid date length for field")
 
+// parseDateBytes parses a date from a byte slice using a CNAB date format.
 func parseDateBytes(b []byte, format string) (time.Time, error) {
 	if len(b) != len(format) {
 		return time.Time{}, ErrInvalidDateLength
@@ -148,6 +163,7 @@ func parseDateBytes(b []byte, format string) (time.Time, error) {
 	return time.Parse(goFormat, string(b))
 }
 
+// pow10 returns 10^n
 func pow10(n int) float64 {
 	result := 1.0
 	for i := 0; i < n; i++ {
@@ -156,6 +172,7 @@ func pow10(n int) float64 {
 	return result
 }
 
+// convertDateFormat converts a CNAB date format to a Go date format.
 func convertDateFormat(format string) string {
 	replacements := map[string]string{
 		"YYYY": "2006",
@@ -168,6 +185,7 @@ func convertDateFormat(format string) string {
 	return format
 }
 
+// formatDate formats a time.Time value using a CNAB date format.
 func formatDate(value time.Time, format string) string {
 	goFormat := convertDateFormat(format)
 	return value.Format(goFormat)
@@ -179,6 +197,7 @@ var (
 	IsErrCannotConvertToInt = iError.MatchError(ourErrors.CNAB_ErrCannotConvertToInt.Err)
 )
 
+// toInt converts a value to an int.
 func toInt(value interface{}) (int, error) {
 	switch v := value.(type) {
 	case int:
@@ -194,6 +213,7 @@ func toInt(value interface{}) (int, error) {
 	}
 }
 
+// toFloat converts a value to a float64.
 func toFloat(value interface{}) (float64, error) {
 	switch v := value.(type) {
 	case float64:
@@ -211,6 +231,7 @@ func toFloat(value interface{}) (float64, error) {
 	}
 }
 
+// fieldToError returns an error message for a field.
 func fieldToError(fieldName, fieldValue string) error {
 	return fmt.Errorf("field %s %s", fieldName, fieldValue)
 }
