@@ -33,6 +33,18 @@ func TestProcessor_LoadSpec(t *testing.T) {
 	}
 }
 
+func TestProcessor_LoadSpec_InvalidJSON(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `invalid`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if !IsErrFailedToDecodeSpecJSON(err) {
+		t.Fatalf("Expected ErrFailedToDecodeSpecJSON, got %v", err)
+	}
+}
+
 func TestProcessor_ParseRecord(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()
