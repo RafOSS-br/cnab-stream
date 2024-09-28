@@ -67,6 +67,51 @@ func TestProcessor_LoadSpec_InvalidField(t *testing.T) {
 	}
 }
 
+func TestProcessor_LoadSpec_InvalidFieldStart(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if !IsErrStartAndLengthMustBeGreaterThanZero(err) {
+		t.Fatalf("Expected ErrStartAndLengthMustBeGreaterThanZero, got %v", err)
+	}
+}
+
+func TestProcessor_LoadSpec_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 1,
+				"length": 3
+			}
+		]
+	}`
+
+	cancel()
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if !IsErrCancelledContext(err) {
+		t.Fatalf("Expected context error, got %v", err)
+	}
+}
+
 func TestProcessor_ParseRecord(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()

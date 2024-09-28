@@ -162,6 +162,14 @@ func (e *InvalidDateLength) CreateError(err error) error {
 	return &InvalidDateLength{iError.NewError("Invalid date length", err)}
 }
 
+type CancelledContext struct {
+	*iError.IError
+}
+
+func (e *CancelledContext) CreateError(err error) error {
+	return &CancelledContext{iError.NewError("Canceled context", err)}
+}
+
 var (
 	// CBAN errors
 
@@ -296,5 +304,12 @@ var (
 		Encapsulator: &InvalidDateLength{},
 		Creator:      iError.NewCreator[*InvalidDateLength](&InvalidDateLength{}),
 		Err:          iError.NewCreator[*InvalidDateLength](&InvalidDateLength{})(nil),
+	}
+
+	// CNAB_ErrCancelledContext is an error that occurs when a context is canceled.
+	CNAB_ErrCancelledContext = &ErrInstance[*CancelledContext]{
+		Encapsulator: &CancelledContext{},
+		Creator:      iError.NewCreator[*CancelledContext](&CancelledContext{}),
+		Err:          iError.NewCreator[*CancelledContext](&CancelledContext{})(nil),
 	}
 )

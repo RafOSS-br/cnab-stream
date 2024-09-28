@@ -79,19 +79,25 @@ var (
 	// ErrFailedToDecodeSpecJSON is an error that occurs when the CNAB spec JSON cannot be decoded.
 	ErrFailedToDecodeSpecJSON   = ourErrors.CNAB_ErrFailedToDecodeSpecJSON.Err
 	IsErrFailedToDecodeSpecJSON = iError.MatchError(ourErrors.CNAB_ErrFailedToDecodeSpecJSON.Err)
+
 	// ErrStartAndLengthMustBeGreaterThanZero is an error that occurs when the start and length of a field are less than or equal to zero.
 	ErrStartAndLengthMustBeGreaterThanZero   = ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Err
 	IsErrStartAndLengthMustBeGreaterThanZero = iError.MatchError(ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Err)
+
 	// ErrFieldHasNoTypeSpecified is an error that occurs when a field has no type specified.
 	ErrFieldHasNoTypeSpecified   = ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Err
 	IsErrFieldHasNoTypeSpecified = iError.MatchError(ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Err)
+
+	// ErrCancelledContext is an error that occurs when the context is cancelled.
+	ErrCancelledContext   = ourErrors.CNAB_ErrCancelledContext.Err
+	IsErrCancelledContext = iError.MatchError(ourErrors.CNAB_ErrCancelledContext.Err)
 )
 
 // LoadSpec loads the CNAB specification from a JSON reader.
 func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return ourErrors.CNAB_ErrCancelledContext.Creator(ctx.Err())
 	default:
 	}
 
