@@ -1,16 +1,12 @@
 package cnab
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	ourErrors "github.com/RafOSS-br/cnab-stream/errors"
 	iError "github.com/RafOSS-br/cnab-stream/internal/error"
@@ -42,6 +38,36 @@ type FieldSpec struct {
 	Format  string `json:"format,omitempty"`
 	Decimal int    `json:"decimal,omitempty"`
 	End     int    // Calculated as Start + Length - 1
+}
+
+// FieldHandler defines the interface for handling fields.
+type FieldHandler struct {
+	Validate func(field FieldSpec) error
+	Parse    func(field FieldSpec, rawValue []byte) (interface{}, error)
+	Format   func(field FieldSpec, value interface{}) (string, error)
+}
+
+var fieldHandlers = map[string]*FieldHandler{
+	"int": {
+		Validate: validateIntField,
+		Parse:    parseIntField,
+		Format:   formatIntField,
+	},
+	"float": {
+		Validate: validateFloatField,
+		Parse:    parseFloatField,
+		Format:   formatFloatField,
+	},
+	"date": {
+		Validate: validateDateField,
+		Parse:    parseDateField,
+		Format:   formatDateField,
+	},
+	"string": {
+		Validate: validateStringField,
+		Parse:    parseStringField,
+		Format:   formatStringField,
+	},
 }
 
 // CNABSpec defines the CNAB specification.
@@ -82,7 +108,7 @@ func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 		if field.Start <= 0 || field.Length <= 0 {
 			return ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Creator(fieldToError("Name", field.Name))
 		}
-		if field.Type == "" {
+		if _, exists := fieldHandlers[field.Type]; !exists {
 			return ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Creator(fieldToError("Name", field.Name))
 		}
 	}
@@ -193,28 +219,6 @@ var (
 	IsErrUnsupportedFieldType = iError.MatchError(ourErrors.CNAB_ErrUnsupportedFieldType.Err)
 )
 
-func (p *processor) parseFieldValue(field FieldSpec, rawValue []byte) (interface{}, error) {
-	trimmedValue := bytes.TrimSpace(rawValue)
-
-	// Basic input sanitization: ensure trimmedValue is not empty
-	if len(trimmedValue) == 0 {
-		return nil, ourErrors.CNAB_ErrFieldIsEmpty.Creator(fieldToError("Name", field.Name))
-	}
-
-	switch field.Type {
-	case "int":
-		return atoiUnsafe(trimmedValue)
-	case "float":
-		return parseFloatBytes(trimmedValue, field.Decimal)
-	case "date":
-		return parseDateBytes(trimmedValue, field.Format)
-	case "string":
-		return string(trimmedValue), nil
-	default:
-		return nil, ourErrors.CNAB_ErrUnsupportedFieldType.Creator(fieldToError("Type", field.Type))
-	}
-}
-
 var (
 	// ErrFieldValueIsNotAnDate is an error that occurs when a field value is not a date.
 	ErrFieldValueIsNotAnDate   = ourErrors.CNAB_ErrFieldValueIsNotAnDate.Err
@@ -234,35 +238,12 @@ var (
 )
 
 func (p *processor) formatFieldValue(field FieldSpec, value interface{}) (string, error) {
-	switch field.Type {
-	case "int":
-		intValue, err := toInt(value)
-		if err != nil {
-			return "", ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fmt.Errorf("field %s: %w", field.Name, err))
-		}
-		return fmt.Sprintf("%0*d", field.Length, intValue), nil
-	case "float":
-		floatValue, err := toFloat(value)
-		if err != nil {
-			return "", ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Name", field.Name))
-		}
-		scaledValue := int64(floatValue * pow10(field.Decimal))
-		return fmt.Sprintf("%0*d", field.Length, scaledValue), nil
-	case "date":
-		dateValue, ok := value.(time.Time)
-		if !ok {
-			return "", ourErrors.CNAB_ErrFieldValueIsNotAnDate.Creator(fieldToError("Name", field.Name))
-		}
-		return formatDate(dateValue, field.Format), nil
-	case "string":
-		strValue, ok := value.(string)
-		if !ok {
-			return "", ourErrors.CNAB_ErrFieldValueIsNotAnString.Creator(fieldToError("Name", field.Name))
-		}
-		return strValue, nil
-	default:
+	handler := fieldHandlers[field.Type]
+	if handler == nil {
 		return "", ourErrors.CNAB_ErrUnsupportedFieldType.Creator(fieldToError("Type", field.Type))
 	}
+
+	return handler.Format(field, value)
 }
 
 var (
@@ -277,116 +258,21 @@ var (
 
 // parse a CNAB record into a map
 func (p *processor) parseRecord(record []byte, field FieldSpec, m map[string]interface{}) error {
+	handler := fieldHandlers[field.Type]
+	if handler == nil {
+		return ourErrors.CNAB_ErrUnsupportedFieldType.Creator(fieldToError("Type", field.Type))
+	}
+
 	if field.End > len(record) {
 		return ourErrors.CNAB_ErrFieldExceedsRecordLength.Creator(fieldToError("Name", field.Name))
 	}
 
 	rawValue := record[field.Start-1 : field.End]
-	value, err := p.parseFieldValue(field, rawValue)
+	value, err := handler.Parse(field, rawValue)
 	if err != nil {
 		return ourErrors.CNAB_ErrFailedToParseField.Creator(fmt.Errorf("field %s: %w", field.Name, err))
 	}
 
 	m[field.Name] = value
 	return nil
-}
-
-// Utility Functions
-
-var ErrInvalidIntegerInput = errors.New("invalid integer input")
-
-func atoiUnsafe(b []byte) (int, error) {
-	n := 0
-	for _, c := range b {
-		if c < '0' || c > '9' {
-			return 0, ErrInvalidIntegerInput
-		}
-		n = n*10 + int(c-'0')
-	}
-	return n, nil
-}
-
-func parseFloatBytes(b []byte, decimal int) (float64, error) {
-	intValue, err := atoiUnsafe(b)
-	if err != nil {
-		return 0, err
-	}
-	return float64(intValue) / pow10(decimal), nil
-}
-
-var ErrInvalidDateLength = errors.New("invalid date length for field")
-
-func parseDateBytes(b []byte, format string) (time.Time, error) {
-	if len(b) != len(format) {
-		return time.Time{}, ErrInvalidDateLength
-	}
-	goFormat := convertDateFormat(format)
-	return time.Parse(goFormat, string(b))
-}
-
-func pow10(n int) float64 {
-	result := 1.0
-	for i := 0; i < n; i++ {
-		result *= 10
-	}
-	return result
-}
-
-func convertDateFormat(format string) string {
-	replacements := map[string]string{
-		"YYYY": "2006",
-		"MM":   "01",
-		"DD":   "02",
-	}
-	for old, new := range replacements {
-		format = strings.ReplaceAll(format, old, new)
-	}
-	return format
-}
-
-func formatDate(value time.Time, format string) string {
-	goFormat := convertDateFormat(format)
-	return value.Format(goFormat)
-}
-
-var (
-	// ErrCannotConvertToInt is an error that occurs when a value cannot be converted to an int.
-	ErrCannotConvertToInt   = ourErrors.CNAB_ErrCannotConvertToInt.Err
-	IsErrCannotConvertToInt = iError.MatchError(ourErrors.CNAB_ErrCannotConvertToInt.Err)
-)
-
-func toInt(value interface{}) (int, error) {
-	switch v := value.(type) {
-	case int:
-		return v, nil
-	case int64:
-		return int(v), nil
-	case float64:
-		return int(v), nil
-	case string:
-		return strconv.Atoi(v)
-	default:
-		return 0, ourErrors.CNAB_ErrCannotConvertToInt.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
-	}
-}
-
-func toFloat(value interface{}) (float64, error) {
-	switch v := value.(type) {
-	case float64:
-		return v, nil
-	case float32:
-		return float64(v), nil
-	case int:
-		return float64(v), nil
-	case int64:
-		return float64(v), nil
-	case string:
-		return strconv.ParseFloat(v, 64)
-	default:
-		return 0, ourErrors.CNAB_ErrCannotConvertToFloat.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
-	}
-}
-
-func fieldToError(fieldName, fieldValue string) error {
-	return fmt.Errorf("field %s %s", fieldName, fieldValue)
 }

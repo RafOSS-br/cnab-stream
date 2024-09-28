@@ -138,6 +138,30 @@ func (e *CannotConvertToFloat) CreateError(err error) error {
 	return &CannotConvertToFloat{iError.NewError("Cannot convert to float", err)}
 }
 
+type InvalidDecimalValue struct {
+	*iError.IError
+}
+
+func (e *InvalidDecimalValue) CreateError(err error) error {
+	return &InvalidDecimalValue{iError.NewError("Invalid decimal value", err)}
+}
+
+type MissingDateFormat struct {
+	*iError.IError
+}
+
+func (e *MissingDateFormat) CreateError(err error) error {
+	return &MissingDateFormat{iError.NewError("Missing date format", err)}
+}
+
+type InvalidDateLength struct {
+	*iError.IError
+}
+
+func (e *InvalidDateLength) CreateError(err error) error {
+	return &InvalidDateLength{iError.NewError("Invalid date length", err)}
+}
+
 var (
 	// CBAN errors
 
@@ -251,5 +275,26 @@ var (
 		Encapsulator: &CannotConvertToFloat{},
 		Creator:      iError.NewCreator[*CannotConvertToFloat](&CannotConvertToFloat{}),
 		Err:          iError.NewCreator[*CannotConvertToFloat](&CannotConvertToFloat{})(nil),
+	}
+
+	// CNAB_ErrInvalidDecimalValue is an error that occurs when a decimal value is invalid.
+	CNAB_ErrInvalidDecimalValue = &ErrInstance[*InvalidDecimalValue]{
+		Encapsulator: &InvalidDecimalValue{},
+		Creator:      iError.NewCreator[*InvalidDecimalValue](&InvalidDecimalValue{}),
+		Err:          iError.NewCreator[*InvalidDecimalValue](&InvalidDecimalValue{})(nil),
+	}
+
+	// CNAB_ErrMissingDateFormat is an error that occurs when a date format is missing.
+	CNAB_ErrMissingDateFormat = &ErrInstance[*MissingDateFormat]{
+		Encapsulator: &MissingDateFormat{},
+		Creator:      iError.NewCreator[*MissingDateFormat](&MissingDateFormat{}),
+		Err:          iError.NewCreator[*MissingDateFormat](&MissingDateFormat{})(nil),
+	}
+
+	// CNAB_ErrInvalidDateLength is an error that occurs when a date length is invalid.
+	CNAB_ErrInvalidDateLength = &ErrInstance[*InvalidDateLength]{
+		Encapsulator: &InvalidDateLength{},
+		Creator:      iError.NewCreator[*InvalidDateLength](&InvalidDateLength{}),
+		Err:          iError.NewCreator[*InvalidDateLength](&InvalidDateLength{})(nil),
 	}
 )
