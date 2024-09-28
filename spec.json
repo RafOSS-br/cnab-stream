@@ -28,8 +28,8 @@
       {
         "name": "payment_amount",
         "type": "float",
-        "start": 17,
-        "length": 10,
+        "start": 20,
+        "length": 7,
         "decimal": 2
         }
     ]
