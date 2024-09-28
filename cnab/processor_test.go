@@ -169,6 +169,65 @@ func TestProcessor_ParseRecord(t *testing.T) {
 	}
 }
 
+func TestProcessor_ParseRecord_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 1,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	record := []byte("001")
+
+	cancel()
+	_, err = p.ParseRecord(ctx, record)
+	if !IsErrCancelledContext(err) {
+		t.Fatalf("Expected context error, got %v", err)
+	}
+}
+
+func TestProcessor_ParseRecord_WithErr(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 1,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	record := []byte("")
+
+	_, err = p.ParseRecord(ctx, record)
+	if err == nil {
+		t.Fatalf("Expected ErrFailedToParseRecord, got %v", err)
+	}
+}
+
 func TestProcessor_PackRecord(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()
@@ -218,6 +277,71 @@ func TestProcessor_PackRecord(t *testing.T) {
 	expectedRecord := "001202101011234567890" // bank_code=1, payment_date=2021-01-01, payment_amount=12345678.90
 	if string(record) != expectedRecord {
 		t.Errorf("Expected record %s, got %s", expectedRecord, string(record))
+	}
+}
+
+func Test_formatFieldValue_InvalidType(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "invalid",
+				"type": "invalid",
+				"start": 1,
+				"length": 3
+			}
+			]
+		}`
+
+	fieldSpec := FieldSpec{
+		Name:   "invalid",
+		Type:   "invalid",
+		Start:  1,
+		Length: 3,
+	}
+
+	p.LoadSpec(ctx, strings.NewReader(specJSON))
+
+	_, err := p.(*processor).formatFieldValue(fieldSpec, "invalid")
+	if err == nil {
+		t.Fatalf("Expected error for invalid field type, got nil")
+	}
+}
+
+func Test_parseRecord_UnsupportedFieldType(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "unsupported",
+				"type": "unsupported",
+				"start": 1,
+				"length": 3
+			}
+		]
+	}`
+
+	field := FieldSpec{
+		Name:   "unsupported",
+		Type:   "unsupported",
+		Start:  1,
+		Length: 3,
+	}
+
+	m := make(map[string]interface{})
+	m["unsupported"] = "001"
+
+	p.LoadSpec(ctx, strings.NewReader(specJSON))
+
+	err := p.(*processor).parseRecord([]byte("001"), field, m)
+	if err == nil {
+		t.Fatalf("Expected error for unsupported field type, got nil")
 	}
 }
 
