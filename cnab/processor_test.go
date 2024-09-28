@@ -45,6 +45,28 @@ func TestProcessor_LoadSpec_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestProcessor_LoadSpec_InvalidField(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "",
+				"start": 1,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if !IsErrFieldHasNoTypeSpecified(err) {
+		t.Fatalf("Expected ErrFieldHasNoTypeSpecified, got %v", err)
+	}
+}
+
 func TestProcessor_ParseRecord(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()
