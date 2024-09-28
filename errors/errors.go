@@ -271,20 +271,6 @@ var (
 		Err:          iError.NewCreator[*FailedToParseField](&FailedToParseField{})(nil),
 	}
 
-	// CNAB_ErrCannotConvertToInt is an error that occurs when a value cannot be converted to an int.
-	CNAB_ErrCannotConvertToInt = &ErrInstance[*CannotConvertToInt]{
-		Encapsulator: &CannotConvertToInt{},
-		Creator:      iError.NewCreator[*CannotConvertToInt](&CannotConvertToInt{}),
-		Err:          iError.NewCreator[*CannotConvertToInt](&CannotConvertToInt{})(nil),
-	}
-
-	// CNAB_ErrCannotConvertToFloat is an error that occurs when a value cannot be converted to a float.
-	CNAB_ErrCannotConvertToFloat = &ErrInstance[*CannotConvertToFloat]{
-		Encapsulator: &CannotConvertToFloat{},
-		Creator:      iError.NewCreator[*CannotConvertToFloat](&CannotConvertToFloat{}),
-		Err:          iError.NewCreator[*CannotConvertToFloat](&CannotConvertToFloat{})(nil),
-	}
-
 	// CNAB_ErrInvalidDecimalValue is an error that occurs when a decimal value is invalid.
 	CNAB_ErrInvalidDecimalValue = &ErrInstance[*InvalidDecimalValue]{
 		Encapsulator: &InvalidDecimalValue{},

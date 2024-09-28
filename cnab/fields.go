@@ -2,7 +2,6 @@ package cnab
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -76,6 +75,12 @@ func formatFloatField(field FieldSpec, value interface{}) (string, error) {
 
 // Date Field Handlers
 
+var (
+	// ErrMissingDateFormat is returned when the date format is missing
+	ErrMissingDateFormat   = ourErrors.CNAB_ErrMissingDateFormat.Creator(fieldToError("Name", "format"))
+	IsErrMissingDateFormat = iError.MatchError(ErrMissingDateFormat)
+)
+
 // validateDateField validates a date field.
 func validateDateField(field FieldSpec) error {
 	if field.Format == "" {
@@ -129,14 +134,12 @@ func formatStringField(field FieldSpec, value interface{}) (string, error) {
 
 // Utility Functions
 
-var ErrInvalidIntegerInput = errors.New("invalid integer input")
-
 // atoiUnsafe is a faster version of strconv.Atoi that does not check for errors.
 func atoiUnsafe(b []byte) (int, error) {
 	n := 0
 	for _, c := range b {
 		if c < '0' || c > '9' {
-			return 0, ErrInvalidIntegerInput
+			return 0, ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fmt.Errorf("invalid character %c", c))
 		}
 		n = n*10 + int(c-'0')
 	}
@@ -147,12 +150,16 @@ func atoiUnsafe(b []byte) (int, error) {
 func parseFloatBytes(b []byte, decimal int) (float64, error) {
 	intValue, err := atoiUnsafe(b)
 	if err != nil {
-		return 0, err
+		return 0, ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(err)
 	}
 	return float64(intValue) / pow10(decimal), nil
 }
 
-var ErrInvalidDateLength = errors.New("invalid date length for field")
+var (
+	// ErrInvalidDateLength is returned when the date length is invalid
+	ErrInvalidDateLength   = ourErrors.CNAB_ErrInvalidDateLength.Err
+	IsErrInvalidDateLength = iError.MatchError(ErrInvalidDateLength)
+)
 
 // parseDateBytes parses a date from a byte slice using a CNAB date format.
 func parseDateBytes(b []byte, format string) (time.Time, error) {
@@ -160,7 +167,11 @@ func parseDateBytes(b []byte, format string) (time.Time, error) {
 		return time.Time{}, ErrInvalidDateLength
 	}
 	goFormat := convertDateFormat(format)
-	return time.Parse(goFormat, string(b))
+	timeValue, err := time.Parse(goFormat, string(b))
+	if err != nil {
+		return time.Time{}, ourErrors.CNAB_ErrFieldValueIsNotAnDate.Creator(err)
+	}
+	return timeValue, nil
 }
 
 // pow10 returns 10^n
@@ -191,12 +202,6 @@ func formatDate(value time.Time, format string) string {
 	return value.Format(goFormat)
 }
 
-var (
-	// ErrCannotConvertToInt is an error that occurs when a value cannot be converted to an int.
-	ErrCannotConvertToInt   = ourErrors.CNAB_ErrCannotConvertToInt.Err
-	IsErrCannotConvertToInt = iError.MatchError(ourErrors.CNAB_ErrCannotConvertToInt.Err)
-)
-
 // toInt converts a value to an int.
 func toInt(value interface{}) (int, error) {
 	switch v := value.(type) {
@@ -207,9 +212,13 @@ func toInt(value interface{}) (int, error) {
 	case float64:
 		return int(v), nil
 	case string:
-		return strconv.Atoi(v)
+		intValue, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fieldToError("Value", v))
+		}
+		return intValue, nil
 	default:
-		return 0, ourErrors.CNAB_ErrCannotConvertToInt.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
+		return 0, ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
 	}
 }
 
@@ -225,9 +234,13 @@ func toFloat(value interface{}) (float64, error) {
 	case int64:
 		return float64(v), nil
 	case string:
-		return strconv.ParseFloat(v, 64)
+		floatValue, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Value", v))
+		}
+		return floatValue, nil
 	default:
-		return 0, ourErrors.CNAB_ErrCannotConvertToFloat.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
+		return 0, ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
 	}
 }
 

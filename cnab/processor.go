@@ -19,6 +19,7 @@ type Processor interface {
 	PackRecord(ctx context.Context, data map[string]interface{}) ([]byte, error)
 }
 
+// processor implements the Processor interface.
 type processor struct {
 	spec       CNABSpec
 	fieldCount int
@@ -47,6 +48,7 @@ type FieldHandler struct {
 	Format   func(field FieldSpec, value interface{}) (string, error)
 }
 
+// Field Handlers
 var fieldHandlers = map[string]*FieldHandler{
 	"int": {
 		Validate: validateIntField,
@@ -243,6 +245,7 @@ var (
 	IsErrFieldValueIsNotAnFloat = iError.MatchError(ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Err)
 )
 
+// formatFieldValue formats a field value.
 func (p *processor) formatFieldValue(field FieldSpec, value interface{}) (string, error) {
 	handler := fieldHandlers[field.Type]
 	if handler == nil {
