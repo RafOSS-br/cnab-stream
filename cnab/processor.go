@@ -187,7 +187,7 @@ func (p *processor) PackRecord(ctx context.Context, data map[string]interface{})
 	for _, field := range p.spec.Fields {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, ourErrors.CNAB_ErrCancelledContext.Creator(ctx.Err())
 		default:
 		}
 
