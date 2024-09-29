@@ -3,7 +3,6 @@ package cnab
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"time"
@@ -212,7 +211,7 @@ func toInt(value interface{}) (int, error) {
 	case float64:
 		return int(v), nil
 	case string:
-		intValue, err := strconv.Atoi(v)
+		intValue, err := atoiUnsafe([]byte(v))
 		if err != nil {
 			return 0, ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fieldToError("Value", v))
 		}
@@ -234,11 +233,27 @@ func toFloat(value interface{}) (float64, error) {
 	case int64:
 		return float64(v), nil
 	case string:
-		floatValue, err := strconv.ParseFloat(v, 64)
+		if v == "" {
+			return 0, nil
+		}
+
+		var buffer []byte
+		var decimal int
+
+		for i := 0; i < len(v); i++ {
+			if v[i] == '.' {
+				decimal = len(v) - i - 1
+			} else {
+				buffer = append(buffer, v[i])
+			}
+		}
+
+		floatValue, err := parseFloatBytes(buffer, decimal)
 		if err != nil {
 			return 0, ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Value", v))
 		}
 		return floatValue, nil
+
 	default:
 		return 0, ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Value", fmt.Sprintf("%v", value)))
 	}
