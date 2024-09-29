@@ -162,6 +162,14 @@ func (e *InvalidDateLength) CreateError(err error) error {
 	return &InvalidDateLength{iError.NewError("Invalid date length", err)}
 }
 
+type StartMustBeGreaterOrEqualZero struct {
+	*iError.IError
+}
+
+func (e *StartMustBeGreaterOrEqualZero) CreateError(err error) error {
+	return &StartMustBeGreaterOrEqualZero{iError.NewError("Start must be greater or equal zero", err)}
+}
+
 type CancelledContext struct {
 	*iError.IError
 }
@@ -180,8 +188,8 @@ var (
 		Err:          iError.NewCreator[*FailedToDecodeSpecJSONEncapsulator](&FailedToDecodeSpecJSONEncapsulator{})(nil),
 	}
 
-	// CNAB_ErrStartAndLengthMustBeGreaterThanZero is an error that occurs when the start and length of a field are less than or equal to zero.
-	CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator = &ErrInstance[*StartAndLengthMustBeGreaterThanZero]{
+	// CNAB_ErrLengthMustBeGreaterThanZero is an error that occurs when the start and length of a field are less than or equal to zero.
+	CNAB_ErrLengthMustBeGreaterThanZeroEncapsulator = &ErrInstance[*StartAndLengthMustBeGreaterThanZero]{
 		Encapsulator: &StartAndLengthMustBeGreaterThanZero{},
 		Creator:      iError.NewCreator[*StartAndLengthMustBeGreaterThanZero](&StartAndLengthMustBeGreaterThanZero{}),
 		Err:          iError.NewCreator[*StartAndLengthMustBeGreaterThanZero](&StartAndLengthMustBeGreaterThanZero{})(nil),
@@ -297,5 +305,12 @@ var (
 		Encapsulator: &CancelledContext{},
 		Creator:      iError.NewCreator[*CancelledContext](&CancelledContext{}),
 		Err:          iError.NewCreator[*CancelledContext](&CancelledContext{})(nil),
+	}
+
+	// CNAB_ErrStartMustBeGreaterOrEqualZero is an error that occurs when the start is less than zero.
+	CNAB_ErrStartMustBeGreaterOrEqualZero = &ErrInstance[*StartMustBeGreaterOrEqualZero]{
+		Encapsulator: &StartMustBeGreaterOrEqualZero{},
+		Creator:      iError.NewCreator[*StartMustBeGreaterOrEqualZero](&StartMustBeGreaterOrEqualZero{}),
+		Err:          iError.NewCreator[*StartMustBeGreaterOrEqualZero](&StartMustBeGreaterOrEqualZero{})(nil),
 	}
 )

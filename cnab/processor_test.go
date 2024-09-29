@@ -17,7 +17,7 @@ func TestProcessor_LoadSpec(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -55,7 +55,7 @@ func TestProcessor_LoadSpec_InvalidField(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -77,15 +77,15 @@ func TestProcessor_LoadSpec_InvalidFieldStart(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 0,
+				"start": -1,
 				"length": 3
 			}
 		]
 	}`
 
 	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
-	if !IsErrStartAndLengthMustBeGreaterThanZero(err) {
-		t.Fatalf("Expected ErrStartAndLengthMustBeGreaterThanZero, got %v", err)
+	if !IsErrStartMustBeGreaterOrEqualZero(err) {
+		t.Fatalf("Expected ErrLengthMustBeGreaterThanZero, got %v", err)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestProcessor_LoadSpec_ContextCancelled(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -122,20 +122,20 @@ func TestProcessor_ParseRecord(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			},
 			{
 				"name": "payment_date",
 				"type": "date",
-				"start": 4,
+				"start": 3,
 				"length": 8,
 				"format": "YYYYMMDD"
 			},
 			{
 				"name": "payment_amount",
 				"type": "float",
-				"start": 12,
+				"start": 11,
 				"length": 8,
 				"decimal": 2
 			}
@@ -179,7 +179,7 @@ func TestProcessor_ParseRecord_ContextCancelled(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -209,7 +209,7 @@ func TestProcessor_ParseRecord_WithErr(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -238,20 +238,20 @@ func TestProcessor_PackRecord(t *testing.T) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			},
 			{
 				"name": "payment_date",
 				"type": "date",
-				"start": 4,
+				"start": 3,
 				"length": 8,
 				"format": "YYYYMMDD"
 			},
 			{
 				"name": "payment_amount",
 				"type": "float",
-				"start": 12,
+				"start": 11,
 				"length": 10,
 				"decimal": 2
 			}
@@ -280,6 +280,130 @@ func TestProcessor_PackRecord(t *testing.T) {
 	}
 }
 
+func TestProcessor_PackRecord_InvalidData(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	data := map[string]interface{}{}
+
+	_, err = p.PackRecord(ctx, data)
+	if err == nil {
+		t.Fatalf("Expected ErrFailedToPackRecord, got %v", err)
+	}
+}
+func TestProcessor_PackRecord_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	data := map[string]interface{}{
+		"bank_code": 1,
+	}
+
+	cancel()
+	_, err = p.PackRecord(ctx, data)
+	if !IsErrCancelledContext(err) {
+		t.Fatalf("Expected context error, got %v", err)
+	}
+}
+
+func TestProcessor_PackRecord_WithErr(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	data := map[string]interface{}{}
+
+	_, err = p.PackRecord(ctx, data)
+	if err == nil {
+		t.Fatalf("Expected ErrFailedToPackRecord, got %v", err)
+	}
+}
+
+func TestProcessor_formatFieldValue_Int(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "int",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	fieldSpec := FieldSpec{
+		Name:   "int",
+		Type:   "int",
+		Start:  0,
+		Length: 3,
+	}
+
+	p.LoadSpec(ctx, strings.NewReader(specJSON))
+
+	value, err := p.(*processor).formatFieldValue(fieldSpec, 001)
+	if err != nil {
+		t.Fatalf("Failed to format field value: %v", err)
+	}
+
+	if value != "001" {
+		t.Errorf("Expected 001, got %v", value)
+	}
+}
+
 func Test_formatFieldValue_InvalidType(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()
@@ -290,7 +414,7 @@ func Test_formatFieldValue_InvalidType(t *testing.T) {
 			{
 				"name": "invalid",
 				"type": "invalid",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 			]
@@ -321,7 +445,7 @@ func Test_parseRecord_UnsupportedFieldType(t *testing.T) {
 			{
 				"name": "unsupported",
 				"type": "unsupported",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			}
 		]
@@ -330,7 +454,7 @@ func Test_parseRecord_UnsupportedFieldType(t *testing.T) {
 	field := FieldSpec{
 		Name:   "unsupported",
 		Type:   "unsupported",
-		Start:  1,
+		Start:  0,
 		Length: 3,
 	}
 
@@ -357,20 +481,20 @@ func BenchmarkProcessor_ParseRecord(b *testing.B) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			},
 			{
 				"name": "payment_date",
 				"type": "date",
-				"start": 4,
+				"start": 3,
 				"length": 8,
 				"format": "YYYYMMDD"
 			},
 			{
 				"name": "payment_amount",
 				"type": "float",
-				"start": 12,
+				"start": 11,
 				"length": 10,
 				"decimal": 2
 			}
@@ -403,20 +527,20 @@ func BenchmarkProcessor_PackRecord(b *testing.B) {
 			{
 				"name": "bank_code",
 				"type": "int",
-				"start": 1,
+				"start": 0,
 				"length": 3
 			},
 			{
 				"name": "payment_date",
 				"type": "date",
-				"start": 4,
+				"start": 3,
 				"length": 8,
 				"format": "YYYYMMDD"
 			},
 			{
 				"name": "payment_amount",
 				"type": "float",
-				"start": 12,
+				"start": 11,
 				"length": 10,
 				"decimal": 2
 			}

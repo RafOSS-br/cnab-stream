@@ -24,11 +24,46 @@ type Processor interface {
 type processor struct {
 	spec       CNABSpec
 	fieldCount int
+	store      FieldHandlerStore
+}
+
+// defaultProcessorOptions defines the default options for the processor.
+var defaultProcessorOptions = []ProcessorOptions{
+	WithFieldHandlerStore(nil),
+}
+
+// func (p *processor) formatFieldValue(field FieldSpec, value interface{}) (string, error) {
+
+type ProcessorOptions func(*processor)
+
+// WithFieldHandlerStore adds a field handler store to the processor.
+func WithFieldHandlerStore(store FieldHandlerStore) ProcessorOptions {
+	return func(p *processor) {
+		if store != nil {
+			p.store = store
+			return
+		}
+		p.store = NewFieldHandlerStore(func() []StoreOptions {
+			opts := make([]StoreOptions, 0, len(fieldHandlers))
+			for k, v := range fieldHandlers {
+				opts = append(opts, WithFieldHandler(k, v))
+			}
+			return opts
+		}()...)
+
+	}
 }
 
 // NewProcessor creates a new CNAB processor.
-func NewProcessor() Processor {
-	return &processor{}
+func NewProcessor(customOptions ...ProcessorOptions) Processor {
+	p := processor{}
+	for _, option := range defaultProcessorOptions {
+		option(&p)
+	}
+	for _, option := range customOptions {
+		option(&p)
+	}
+	return &p
 }
 
 // FieldSpec defines the specification for a single field.
@@ -83,9 +118,9 @@ var (
 	ErrFailedToDecodeSpecJSON   = ourErrors.CNAB_ErrFailedToDecodeSpecJSON.Err
 	IsErrFailedToDecodeSpecJSON = iError.MatchError(ourErrors.CNAB_ErrFailedToDecodeSpecJSON.Err)
 
-	// ErrStartAndLengthMustBeGreaterThanZero is an error that occurs when the start and length of a field are less than or equal to zero.
-	ErrStartAndLengthMustBeGreaterThanZero   = ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Err
-	IsErrStartAndLengthMustBeGreaterThanZero = iError.MatchError(ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Err)
+	// ErrLengthMustBeGreaterThanZero is an error that occurs when the start and length of a field are less than or equal to zero.
+	ErrLengthMustBeGreaterThanZero   = ourErrors.CNAB_ErrLengthMustBeGreaterThanZeroEncapsulator.Err
+	IsErrLengthMustBeGreaterThanZero = iError.MatchError(ourErrors.CNAB_ErrLengthMustBeGreaterThanZeroEncapsulator.Err)
 
 	// ErrFieldHasNoTypeSpecified is an error that occurs when a field has no type specified.
 	ErrFieldHasNoTypeSpecified   = ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Err
@@ -94,6 +129,10 @@ var (
 	// ErrCancelledContext is an error that occurs when the context is cancelled.
 	ErrCancelledContext   = ourErrors.CNAB_ErrCancelledContext.Err
 	IsErrCancelledContext = iError.MatchError(ourErrors.CNAB_ErrCancelledContext.Err)
+
+	// ErrStartMustBeGreaterOrEqualZero is an error that occurs when the start of a field is less than zero.
+	ErrStartMustBeGreaterOrEqualZero   = ourErrors.CNAB_ErrStartMustBeGreaterOrEqualZero.Err
+	IsErrStartMustBeGreaterOrEqualZero = iError.MatchError(ourErrors.CNAB_ErrStartMustBeGreaterOrEqualZero.Err)
 )
 
 // LoadSpec loads the CNAB specification from a JSON reader.
@@ -114,9 +153,14 @@ func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 		field := &p.spec.Fields[i]
 		field.End = field.Start + field.Length - 1
 
-		if field.Start <= 0 || field.Length <= 0 {
-			return ourErrors.CNAB_ErrStartAndLengthMustBeGreaterThanZeroEncapsulator.Creator(fieldToError("Name", field.Name))
+		if field.Length <= 0 {
+			return ourErrors.CNAB_ErrLengthMustBeGreaterThanZeroEncapsulator.Creator(fieldToError("Name", field.Name))
 		}
+
+		if field.Start < 0 {
+			return ourErrors.CNAB_ErrStartMustBeGreaterOrEqualZero.Creator(fieldToError("Name", field.Name))
+		}
+
 		if _, exists := fieldHandlers[field.Type]; !exists {
 			return ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Creator(fieldToError("Name", field.Name))
 		}
@@ -219,7 +263,7 @@ func (p *processor) PackRecord(ctx context.Context, data map[string]interface{})
 
 		// Fill with spaces if necessary
 		paddedValue := strValue + strings.Repeat(" ", field.Length-len(strValue))
-		copy(buf[field.Start-1:field.End], paddedValue)
+		copy(buf[field.Start:field.End+1], paddedValue)
 	}
 
 	return buf, nil
@@ -286,7 +330,7 @@ func (p *processor) parseRecord(record []byte, field FieldSpec, m map[string]int
 		return ourErrors.CNAB_ErrFieldExceedsRecordLength.Creator(fieldToError("Name", field.Name))
 	}
 
-	rawValue := record[field.Start-1 : field.End]
+	rawValue := record[field.Start : field.End+1]
 	value, err := handler.Parse(field, rawValue)
 	if err != nil {
 		return ourErrors.CNAB_ErrFailedToParseField.Creator(fmt.Errorf("field %s: %w", field.Name, err))
