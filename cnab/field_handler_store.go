@@ -4,8 +4,8 @@ import "sync"
 
 // FieldHandlerStore is a store for field handlers.
 type FieldHandlerStore interface {
-	// GetFieldHandler returns the field handler for the given field name.
-	GetFieldHandler(fieldName string) *FieldHandler
+	// GetFieldHandler returns the field handler for the given field type.
+	GetFieldHandler(fieldType string) *FieldHandler
 }
 
 type store struct {
@@ -31,9 +31,9 @@ func NewFieldHandlerStore(storeOpts ...StoreOptions) FieldHandlerStore {
 	return store
 }
 
-// GetFieldHandler returns the field handler for the given field name.
-func (s *store) GetFieldHandler(fieldName string) *FieldHandler {
-	if v, ok := s.m.Load(fieldName); ok {
+// GetFieldHandler returns the field handler for the given field type.
+func (s *store) GetFieldHandler(fieldType string) *FieldHandler {
+	if v, ok := s.m.Load(fieldType); ok {
 		return v.(*FieldHandler)
 	}
 	return nil

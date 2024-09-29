@@ -178,6 +178,14 @@ func (e *CancelledContext) CreateError(err error) error {
 	return &CancelledContext{iError.NewError("Canceled context", err)}
 }
 
+type FormatError struct {
+	*iError.IError
+}
+
+func (e *FormatError) CreateError(err error) error {
+	return &FormatError{iError.NewError("Format error", err)}
+}
+
 var (
 	// CBAN errors
 
@@ -312,5 +320,12 @@ var (
 		Encapsulator: &StartMustBeGreaterOrEqualZero{},
 		Creator:      iError.NewCreator[*StartMustBeGreaterOrEqualZero](&StartMustBeGreaterOrEqualZero{}),
 		Err:          iError.NewCreator[*StartMustBeGreaterOrEqualZero](&StartMustBeGreaterOrEqualZero{})(nil),
+	}
+
+	// CNAB_ErrFormatError is an error that occurs when a format error occurs.
+	CNAB_ErrFormatError = &ErrInstance[*FormatError]{
+		Encapsulator: &FormatError{},
+		Creator:      iError.NewCreator[*FormatError](&FormatError{}),
+		Err:          iError.NewCreator[*FormatError](&FormatError{})(nil),
 	}
 )

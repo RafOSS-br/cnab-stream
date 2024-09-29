@@ -33,6 +33,28 @@ func TestProcessor_LoadSpec(t *testing.T) {
 	}
 }
 
+func TestProcessor_LoadSpec_FieldLengthZero(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 0
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if !IsErrLengthMustBeGreaterThanZero(err) {
+		t.Fatalf("Expected ErrLengthMustBeGreaterThanZero, got %v", err)
+	}
+}
+
 func TestProcessor_LoadSpec_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	p := NewProcessor()
@@ -308,6 +330,99 @@ func TestProcessor_PackRecord_InvalidData(t *testing.T) {
 		t.Fatalf("Expected ErrFailedToPackRecord, got %v", err)
 	}
 }
+
+func TestProcessor_PackRecord_FieldExceedsSpecifiedLength(t *testing.T) {
+	ctx := context.Background()
+
+	mockedFieldHandlerStore := &MockFieldHandlerStore{}
+	p := NewProcessor(
+		WithFieldHandlerStore(mockedFieldHandlerStore),
+	)
+
+	// Mock GetFieldHandler
+	mockedFieldHandler := &FieldHandler{
+		Format: func(field *FieldSpec, value interface{}) (string, error) {
+			return "ab", nil
+		},
+		Validate: func(field *FieldSpec) error {
+			return nil
+		},
+	}
+	mockedFieldHandlerStore.On("GetFieldHandler", "int").Return(mockedFieldHandler)
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 1
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	data := map[string]interface{}{
+		"bank_code": 10,
+	}
+
+	_, err = p.PackRecord(ctx, data)
+	if !IsErrFieldExceedsSpecifiedLength(err) {
+		t.Fatalf("Expected ErrFieldValueExceedsSpecifiedLength, got %v", err)
+	}
+}
+
+func TestProcessor_PackRecord_WithErrorOnFormatField(t *testing.T) {
+	ctx := context.Background()
+
+	mockedFieldHandlerStore := &MockFieldHandlerStore{}
+	// Mock GetFieldHandler
+	mockedFieldHandler := &FieldHandler{
+		Format: func(field *FieldSpec, value interface{}) (string, error) {
+			return "", ErrFailedToFormatField
+		},
+		Validate: func(field *FieldSpec) error {
+			return nil
+		},
+	}
+	mockedFieldHandlerStore.On("GetFieldHandler", "int").Return(mockedFieldHandler)
+
+	p := NewProcessor(
+		WithFieldHandlerStore(mockedFieldHandlerStore),
+	)
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "bank_code",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	data := map[string]interface{}{
+		"bank_code": 1,
+	}
+
+	_, err = p.PackRecord(ctx, data)
+	if !IsErrFailedToFormatField(err) {
+		t.Fatalf("Expected ErrFailedToFormatField, got %v", err)
+	}
+}
+
 func TestProcessor_PackRecord_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := NewProcessor()
@@ -394,13 +509,41 @@ func TestProcessor_formatFieldValue_Int(t *testing.T) {
 
 	p.LoadSpec(ctx, strings.NewReader(specJSON))
 
-	value, err := p.(*processor).formatFieldValue(fieldSpec, 001)
+	value, err := p.(*processor).formatFieldValue(&fieldSpec, 001)
 	if err != nil {
 		t.Fatalf("Failed to format field value: %v", err)
 	}
 
 	if value != "001" {
 		t.Errorf("Expected 001, got %v", value)
+	}
+}
+
+func Test_Spec(t *testing.T) {
+	ctx := context.Background()
+	p := NewProcessor()
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "int",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	err := p.LoadSpec(ctx, strings.NewReader(specJSON))
+	if err != nil {
+		t.Fatalf("Failed to load spec: %v", err)
+	}
+
+	expected := "&{Name:int Type:int Start:0 Length:3 Format: Decimal:0 End:2}"
+
+	if p.Spec() != expected {
+		t.Errorf("Expected %s, got %s", expected, "'"+p.Spec()+"'")
 	}
 }
 
@@ -429,7 +572,7 @@ func Test_formatFieldValue_InvalidType(t *testing.T) {
 
 	p.LoadSpec(ctx, strings.NewReader(specJSON))
 
-	_, err := p.(*processor).formatFieldValue(fieldSpec, "invalid")
+	_, err := p.(*processor).formatFieldValue(&fieldSpec, "invalid")
 	if err == nil {
 		t.Fatalf("Expected error for invalid field type, got nil")
 	}
@@ -451,7 +594,7 @@ func Test_parseRecord_UnsupportedFieldType(t *testing.T) {
 		]
 	}`
 
-	field := FieldSpec{
+	field := &FieldSpec{
 		Name:   "unsupported",
 		Type:   "unsupported",
 		Start:  0,
@@ -466,6 +609,55 @@ func Test_parseRecord_UnsupportedFieldType(t *testing.T) {
 	err := p.(*processor).parseRecord([]byte("001"), field, m)
 	if err == nil {
 		t.Fatalf("Expected error for unsupported field type, got nil")
+	}
+}
+
+func Test_parseRecord_MockedErrorOnParseField(t *testing.T) {
+	ctx := context.Background()
+
+	mockedFieldHandlerStore := &MockFieldHandlerStore{}
+	p := NewProcessor(
+		WithFieldHandlerStore(mockedFieldHandlerStore),
+	)
+
+	// Mock GetFieldHandler
+	mockedFieldHandler := &FieldHandler{
+		Validate: func(field *FieldSpec) error {
+			return nil
+		},
+		Parse: func(field *FieldSpec, rawValue []byte) (interface{}, error) {
+			return nil, ErrFailedToParseField
+		},
+	}
+	mockedFieldHandlerStore.On("GetFieldHandler", "int").Return(mockedFieldHandler)
+
+	specJSON := `
+	{
+		"fields": [
+			{
+				"name": "int",
+				"type": "int",
+				"start": 0,
+				"length": 3
+			}
+		]
+	}`
+
+	field := &FieldSpec{
+		Name:   "int",
+		Type:   "int",
+		Start:  0,
+		Length: 3,
+	}
+
+	m := make(map[string]interface{})
+	m["int"] = 1
+
+	p.LoadSpec(ctx, strings.NewReader(specJSON))
+
+	err := p.(*processor).parseRecord([]byte("001"), field, m)
+	if !IsErrFailedToParseField(err) {
+		t.Fatalf("Expected ErrFailedToFormatField, got %v", err)
 	}
 }
 

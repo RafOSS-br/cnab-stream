@@ -44,8 +44,8 @@ func WithFieldHandlerStore(store FieldHandlerStore) ProcessorOptions {
 			return
 		}
 		p.store = NewFieldHandlerStore(func() []StoreOptions {
-			opts := make([]StoreOptions, 0, len(fieldHandlers))
-			for k, v := range fieldHandlers {
+			opts := make([]StoreOptions, 0, len(defaultFieldHandlers))
+			for k, v := range defaultFieldHandlers {
 				opts = append(opts, WithFieldHandler(k, v))
 			}
 			return opts
@@ -79,13 +79,13 @@ type FieldSpec struct {
 
 // FieldHandler defines the interface for handling fields.
 type FieldHandler struct {
-	Validate func(field FieldSpec) error
-	Parse    func(field FieldSpec, rawValue []byte) (interface{}, error)
-	Format   func(field FieldSpec, value interface{}) (string, error)
+	Validate func(field *FieldSpec) error
+	Parse    func(field *FieldSpec, rawValue []byte) (interface{}, error)
+	Format   func(field *FieldSpec, value interface{}) (string, error)
 }
 
 // Field Handlers
-var fieldHandlers = map[string]*FieldHandler{
+var defaultFieldHandlers = map[string]*FieldHandler{
 	"int": {
 		Validate: validateIntField,
 		Parse:    parseIntField,
@@ -110,7 +110,7 @@ var fieldHandlers = map[string]*FieldHandler{
 
 // CNABSpec defines the CNAB specification.
 type CNABSpec struct {
-	Fields []FieldSpec `json:"fields"`
+	Fields []*FieldSpec `json:"fields"`
 }
 
 var (
@@ -150,7 +150,7 @@ func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 
 	// Precompute field positions and validate fields
 	for i := range p.spec.Fields {
-		field := &p.spec.Fields[i]
+		field := p.spec.Fields[i]
 		field.End = field.Start + field.Length - 1
 
 		if field.Length <= 0 {
@@ -160,9 +160,12 @@ func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 		if field.Start < 0 {
 			return ourErrors.CNAB_ErrStartMustBeGreaterOrEqualZero.Creator(fieldToError("Name", field.Name))
 		}
-
-		if _, exists := fieldHandlers[field.Type]; !exists {
+		handler := p.store.GetFieldHandler(field.Type)
+		if handler == nil {
 			return ourErrors.CNAB_ErrFieldHasNoTypeSpecified.Creator(fieldToError("Name", field.Name))
+		}
+		if err := handler.Validate(field); err != nil {
+			return err
 		}
 	}
 
@@ -176,7 +179,7 @@ func (p *processor) Spec() string {
 	for _, field := range p.spec.Fields {
 		str.WriteString(fmt.Sprintf("%+v\n", field))
 	}
-	return str.String()
+	return strings.TrimSpace(str.String())
 }
 
 // ParseRecord parses a CNAB record into a map.
@@ -297,16 +300,23 @@ var (
 	// ErrFieldValueIsNotAnFloat is an error that occurs when a field value is not a float.
 	ErrFieldValueIsNotAnFloat   = ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Err
 	IsErrFieldValueIsNotAnFloat = iError.MatchError(ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Err)
+
+	// ErrOnFormat is an error that occurs when an error occurs during formatting.
+	ErrOnFormat   = ourErrors.CNAB_ErrFailedToFormatField.Err
+	IsErrOnFormat = iError.MatchError(ourErrors.CNAB_ErrFailedToFormatField.Err)
 )
 
 // formatFieldValue formats a field value.
-func (p *processor) formatFieldValue(field FieldSpec, value interface{}) (string, error) {
-	handler := fieldHandlers[field.Type]
+func (p *processor) formatFieldValue(field *FieldSpec, value interface{}) (string, error) {
+	handler := p.store.GetFieldHandler(field.Type)
 	if handler == nil {
 		return "", ourErrors.CNAB_ErrUnsupportedFieldType.Creator(fieldToError("Type", field.Type))
 	}
-
-	return handler.Format(field, value)
+	res, err := handler.Format(field, value)
+	if err != nil {
+		return "", ourErrors.CNAB_ErrFailedToFormatField.Creator(fmt.Errorf("field %s: %w", field.Name, err))
+	}
+	return res, nil
 }
 
 var (
@@ -320,8 +330,8 @@ var (
 )
 
 // parse a CNAB record into a map
-func (p *processor) parseRecord(record []byte, field FieldSpec, m map[string]interface{}) error {
-	handler := fieldHandlers[field.Type]
+func (p *processor) parseRecord(record []byte, field *FieldSpec, m map[string]interface{}) error {
+	handler := p.store.GetFieldHandler(field.Type)
 	if handler == nil {
 		return ourErrors.CNAB_ErrUnsupportedFieldType.Creator(fieldToError("Type", field.Type))
 	}

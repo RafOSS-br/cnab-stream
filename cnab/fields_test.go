@@ -10,7 +10,7 @@ func TestValidateIntField(t *testing.T) {
 	field := FieldSpec{
 		Name: "TestField",
 	}
-	err := validateIntField(field)
+	err := validateIntField(&field)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -23,14 +23,14 @@ func TestParseIntField(t *testing.T) {
 
 	// Test empty rawValue
 	rawValue := []byte("   ")
-	_, err := parseIntField(field, rawValue)
+	_, err := parseIntField(&field, rawValue)
 	if !IsErrFieldIsEmpty(err) {
 		t.Errorf("Expected error for empty rawValue, got %v", err)
 	}
 
 	// Test valid integer
 	rawValue = []byte("  12345 ")
-	value, err := parseIntField(field, rawValue)
+	value, err := parseIntField(&field, rawValue)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -40,7 +40,7 @@ func TestParseIntField(t *testing.T) {
 
 	// Test invalid integer
 	rawValue = []byte(" 12a34 ")
-	_, err = parseIntField(field, rawValue)
+	_, err = parseIntField(&field, rawValue)
 	if !IsErrFieldValueIsNotAnInt(err) {
 		t.Errorf("Expected error for invalid integer input, got %v", err)
 	}
@@ -54,7 +54,7 @@ func TestFormatIntField(t *testing.T) {
 
 	// Test with integer value
 	value := 123
-	str, err := formatIntField(field, value)
+	str, err := formatIntField(&field, value)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -63,7 +63,7 @@ func TestFormatIntField(t *testing.T) {
 	}
 
 	// Test with string value that can be converted to int
-	str, err = formatIntField(field, "456")
+	str, err = formatIntField(&field, "456")
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -72,7 +72,7 @@ func TestFormatIntField(t *testing.T) {
 	}
 
 	// Test with value that cannot be converted to int
-	_, err = formatIntField(field, "abc")
+	_, err = formatIntField(&field, "abc")
 	if !IsErrFieldValueIsNotAnInt(err) {
 		t.Errorf("Expected error for invalid int value, got %v", err)
 	}
@@ -84,14 +84,14 @@ func TestValidateFloatField(t *testing.T) {
 		Name:    "TestFloatField",
 		Decimal: 2,
 	}
-	err := validateFloatField(field)
+	err := validateFloatField(&field)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
 
 	// Test with invalid decimal
 	field.Decimal = -1
-	err = validateFloatField(field)
+	err = validateFloatField(&field)
 	if !IsErrInvalidDecimalValue(err) {
 		t.Errorf("Expected error for negative decimal, got %v", err)
 	}
@@ -105,14 +105,14 @@ func TestParseFloatField(t *testing.T) {
 
 	// Test with empty rawValue
 	rawValue := []byte("  ")
-	_, err := parseFloatField(field, rawValue)
+	_, err := parseFloatField(&field, rawValue)
 	if !IsErrFieldIsEmpty(err) {
 		t.Errorf("Expected error for empty rawValue, got %v", err)
 	}
 
 	// Test with valid float value
 	rawValue = []byte(" 12345 ")
-	value, err := parseFloatField(field, rawValue)
+	value, err := parseFloatField(&field, rawValue)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -123,7 +123,7 @@ func TestParseFloatField(t *testing.T) {
 
 	// Test with invalid integer in rawValue
 	rawValue = []byte("12a34")
-	_, err = parseFloatField(field, rawValue)
+	_, err = parseFloatField(&field, rawValue)
 	if !IsErrFieldValueIsNotAnFloat(err) {
 		t.Errorf("Expected error for invalid integer input, got %v", err)
 	}
@@ -138,7 +138,7 @@ func TestFormatFloatField(t *testing.T) {
 
 	// Test with float64 value
 	value := 123.45
-	str, err := formatFloatField(field, value)
+	str, err := formatFloatField(&field, value)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -148,7 +148,7 @@ func TestFormatFloatField(t *testing.T) {
 
 	// Test with int value
 	value = 123
-	str, err = formatFloatField(field, value)
+	str, err = formatFloatField(&field, value)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -157,7 +157,7 @@ func TestFormatFloatField(t *testing.T) {
 	}
 
 	// Test with string value that can be converted to float
-	str, err = formatFloatField(field, "678.90")
+	str, err = formatFloatField(&field, "678.90")
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -166,7 +166,7 @@ func TestFormatFloatField(t *testing.T) {
 	}
 
 	// Test with invalid value
-	_, err = formatFloatField(field, "abc")
+	_, err = formatFloatField(&field, "abc")
 	if !IsErrFieldValueIsNotAnFloat(err) {
 		t.Errorf("Expected error for invalid float value, got %v", err)
 	}
@@ -177,13 +177,13 @@ func TestValidateDateField(t *testing.T) {
 		Name:   "TestDateField",
 		Format: "YYYYMMDD",
 	}
-	err := validateDateField(field)
+	err := validateDateField(&field)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
 
 	field.Format = ""
-	err = validateDateField(field)
+	err = validateDateField(&field)
 	if !IsErrMissingDateFormat(err) {
 		t.Errorf("Expected error for missing date format, got %v", err)
 	}
@@ -197,21 +197,21 @@ func TestParseDateField(t *testing.T) {
 
 	// Test empty rawValue
 	rawValue := []byte("   ")
-	_, err := parseDateField(field, rawValue)
+	_, err := parseDateField(&field, rawValue)
 	if !IsErrFieldIsEmpty(err) {
 		t.Errorf("Expected error for empty rawValue, got %v", err)
 	}
 
 	// Test rawValue with invalid length
 	rawValue = []byte("202101")
-	_, err = parseDateField(field, rawValue)
+	_, err = parseDateField(&field, rawValue)
 	if !IsErrInvalidDateLength(err) {
 		t.Errorf("Expected error for invalid date length, got %v", err)
 	}
 
 	// Test valid date
 	rawValue = []byte("20210315")
-	value, err := parseDateField(field, rawValue)
+	value, err := parseDateField(&field, rawValue)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -222,7 +222,7 @@ func TestParseDateField(t *testing.T) {
 
 	// Test invalid date
 	rawValue = []byte("20211315")
-	_, err = parseDateField(field, rawValue)
+	_, err = parseDateField(&field, rawValue)
 	if !IsErrFieldValueIsNotAnDate(err) {
 		t.Errorf("Expected error for invalid date, got %v", err)
 	}
@@ -236,7 +236,7 @@ func TestFormatDateField(t *testing.T) {
 
 	// Test with time.Time value
 	value := time.Date(2021, 3, 15, 0, 0, 0, 0, time.UTC)
-	str, err := formatDateField(field, value)
+	str, err := formatDateField(&field, value)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -246,7 +246,7 @@ func TestFormatDateField(t *testing.T) {
 
 	// Test with invalid value type
 	valueInvalid := "20210315"
-	_, err = formatDateField(field, valueInvalid)
+	_, err = formatDateField(&field, valueInvalid)
 	if !IsErrFieldValueIsNotAnDate(err) {
 		t.Errorf("Expected error for invalid date value, got %v", err)
 	}
@@ -256,7 +256,7 @@ func TestValidateStringField(t *testing.T) {
 	field := FieldSpec{
 		Name: "TestStringField",
 	}
-	err := validateStringField(field)
+	err := validateStringField(&field)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -267,7 +267,7 @@ func TestParseStringField(t *testing.T) {
 		Name: "TestStringField",
 	}
 	rawValue := []byte("  Hello World  ")
-	value, err := parseStringField(field, rawValue)
+	value, err := parseStringField(&field, rawValue)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -283,7 +283,7 @@ func TestFormatStringField(t *testing.T) {
 
 	// Test with string value
 	value := "Hello World"
-	str, err := formatStringField(field, value)
+	str, err := formatStringField(&field, value)
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
 	}
@@ -293,7 +293,7 @@ func TestFormatStringField(t *testing.T) {
 
 	// Test with invalid value type
 	valueInvalid := 12345
-	_, err = formatStringField(field, valueInvalid)
+	_, err = formatStringField(&field, valueInvalid)
 	if !IsErrFieldValueIsNotAnString(err) {
 		t.Errorf("Expected error for invalid string value, got %v", err)
 	}

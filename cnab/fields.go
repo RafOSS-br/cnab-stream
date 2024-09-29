@@ -14,13 +14,13 @@ import (
 // Integer Field Handlers
 
 // validateIntField validates an integer field.
-func validateIntField(field FieldSpec) error {
+func validateIntField(field *FieldSpec) error {
 	// No specific validation needed for integer fields
 	return nil
 }
 
 // parseIntField parses an integer field.
-func parseIntField(field FieldSpec, rawValue []byte) (interface{}, error) {
+func parseIntField(field *FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
 		return nil, ourErrors.CNAB_ErrFieldIsEmpty.Creator(fieldToError("Name", field.Name))
@@ -29,7 +29,7 @@ func parseIntField(field FieldSpec, rawValue []byte) (interface{}, error) {
 }
 
 // formatIntField formats an integer field.
-func formatIntField(field FieldSpec, value interface{}) (string, error) {
+func formatIntField(field *FieldSpec, value interface{}) (string, error) {
 	intValue, err := toInt(value)
 	if err != nil {
 		return "", ourErrors.CNAB_ErrFieldValueIsNotAnInt.Creator(fmt.Errorf("field %s: %w", field.Name, err))
@@ -46,7 +46,7 @@ var (
 )
 
 // validateFloatField validates a float field.
-func validateFloatField(field FieldSpec) error {
+func validateFloatField(field *FieldSpec) error {
 	if field.Decimal < 0 {
 		return ourErrors.CNAB_ErrInvalidDecimalValue.Creator(fieldToError("Name", field.Name))
 	}
@@ -54,7 +54,7 @@ func validateFloatField(field FieldSpec) error {
 }
 
 // parseFloatField parses a float field.
-func parseFloatField(field FieldSpec, rawValue []byte) (interface{}, error) {
+func parseFloatField(field *FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
 		return nil, ourErrors.CNAB_ErrFieldIsEmpty.Creator(fieldToError("Name", field.Name))
@@ -63,7 +63,7 @@ func parseFloatField(field FieldSpec, rawValue []byte) (interface{}, error) {
 }
 
 // formatFloatField formats a float field.
-func formatFloatField(field FieldSpec, value interface{}) (string, error) {
+func formatFloatField(field *FieldSpec, value interface{}) (string, error) {
 	floatValue, err := toFloat(value)
 	if err != nil {
 		return "", ourErrors.CNAB_ErrFieldValueIsNotAnFloat.Creator(fieldToError("Name", field.Name))
@@ -81,7 +81,7 @@ var (
 )
 
 // validateDateField validates a date field.
-func validateDateField(field FieldSpec) error {
+func validateDateField(field *FieldSpec) error {
 	if field.Format == "" {
 		return ourErrors.CNAB_ErrMissingDateFormat.Creator(fieldToError("Name", field.Name))
 	}
@@ -89,7 +89,7 @@ func validateDateField(field FieldSpec) error {
 }
 
 // parseDateField parses a date field.
-func parseDateField(field FieldSpec, rawValue []byte) (interface{}, error) {
+func parseDateField(field *FieldSpec, rawValue []byte) (interface{}, error) {
 	trimmedValue := bytes.TrimSpace(rawValue)
 	if len(trimmedValue) == 0 {
 		return nil, ourErrors.CNAB_ErrFieldIsEmpty.Creator(fieldToError("Name", field.Name))
@@ -101,7 +101,7 @@ func parseDateField(field FieldSpec, rawValue []byte) (interface{}, error) {
 }
 
 // formatDateField formats a date field.
-func formatDateField(field FieldSpec, value interface{}) (string, error) {
+func formatDateField(field *FieldSpec, value interface{}) (string, error) {
 	dateValue, ok := value.(time.Time)
 	if !ok {
 		return "", ourErrors.CNAB_ErrFieldValueIsNotAnDate.Creator(fieldToError("Name", field.Name))
@@ -112,18 +112,18 @@ func formatDateField(field FieldSpec, value interface{}) (string, error) {
 // String Field Handlers
 
 // validateStringField validates a string field.
-func validateStringField(field FieldSpec) error {
+func validateStringField(field *FieldSpec) error {
 	// No specific validation needed for string fields
 	return nil
 }
 
 // parseStringField parses a string field.
-func parseStringField(field FieldSpec, rawValue []byte) (interface{}, error) {
+func parseStringField(field *FieldSpec, rawValue []byte) (interface{}, error) {
 	return string(bytes.TrimSpace(rawValue)), nil
 }
 
 // formatStringField formats a string field.
-func formatStringField(field FieldSpec, value interface{}) (string, error) {
+func formatStringField(field *FieldSpec, value interface{}) (string, error) {
 	strValue, ok := value.(string)
 	if !ok {
 		return "", ourErrors.CNAB_ErrFieldValueIsNotAnString.Creator(fieldToError("Name", field.Name))
