@@ -17,6 +17,7 @@ type Processor interface {
 	LoadSpec(ctx context.Context, specReader io.Reader) error
 	ParseRecord(ctx context.Context, record []byte) (map[string]interface{}, error)
 	PackRecord(ctx context.Context, data map[string]interface{}) ([]byte, error)
+	Spec() string
 }
 
 // processor implements the Processor interface.
@@ -123,6 +124,15 @@ func (p *processor) LoadSpec(ctx context.Context, specReader io.Reader) error {
 
 	p.fieldCount = len(p.spec.Fields)
 	return nil
+}
+
+// Print Spec to string
+func (p *processor) Spec() string {
+	var str strings.Builder
+	for _, field := range p.spec.Fields {
+		str.WriteString(fmt.Sprintf("%+v\n", field))
+	}
+	return str.String()
 }
 
 // ParseRecord parses a CNAB record into a map.
