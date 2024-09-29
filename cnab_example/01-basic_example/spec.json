@@ -1,0 +1,37 @@
+{
+    "fields": [
+      {
+        "name": "bank_code",
+        "type": "int",
+        "start": 1,
+        "length": 3
+      },
+      {
+        "name": "service_batch",
+        "type": "int",
+        "start": 4,
+        "length": 4
+      },
+      {
+        "name": "record_type",
+        "type": "int",
+        "start": 8,
+        "length": 1
+      },
+      {
+        "name": "payment_date",
+        "type": "date",
+        "start": 9,
+        "length": 8,
+        "format": "YYYYMMDD"
+      },
+      {
+        "name": "payment_amount",
+        "type": "float",
+        "start": 16,
+        "length": 6,
+        "decimal": 2
+        }
+    ]
+  }
+  
