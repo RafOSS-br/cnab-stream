@@ -1,36 +1,54 @@
 package internal_error
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
 
+type InternalError interface {
+	error
+	FirstClass() error
+	Unwrap() []error
+}
 type IError struct {
-	Msg string
-	Err error
+	Err [2]error
 }
 
 func (e *IError) Error() string {
-	if e.Err != nil {
-		return fmt.Sprintf("%s: %v", e.Msg, e.Err)
+	if e.Err[0] != nil && e.Err[1] != nil {
+		return fmt.Sprintf("%v: %v", e.Err[0], e.Err[1])
 	}
-	return e.Msg
+	if e.Err[0] != nil {
+		return e.Err[0].Error()
+	}
+	return e.Err[1].Error()
 }
 
-func (e *IError) Unwrap() error {
-	return e.Err
+func (e *IError) Unwrap() []error {
+	return e.Err[:]
 }
 
-func NewError(msg string, err error) *IError {
-	return &IError{Msg: msg, Err: err}
+func (e *IError) FirstClass() error {
+	return e.Err[0]
+}
+
+func NewError(errMessage string, childOrInfo error) InternalError {
+	return &IError{Err: [2]error{errors.New(errMessage), childOrInfo}}
 }
 
 func IsError(errExpected, err error) bool {
 	if errExpected == nil {
 		return err == nil
 	}
-	expectedType := reflect.TypeOf(errExpected)
-	return reflect.TypeOf(err) == expectedType
+	if errors.Is(err, errExpected) {
+		return true
+	}
+
+	errType := reflect.TypeOf(errExpected)
+	target := reflect.New(errType).Interface()
+
+	return errors.As(err, &target)
 }
 
 func MatchError(errExpected error) func(error) bool {
@@ -47,7 +65,7 @@ type Encapsulator[T any] interface {
 func NewCreator[T any](e Encapsulator[T]) func(error) error {
 	return func(inner error) error {
 		if e == nil {
-			return fmt.Errorf("Encapsulator is nil")
+			return nil
 		}
 		return e.CreateError(inner)
 	}
